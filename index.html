@@ -367,7 +367,7 @@ const SIGJ=[],SIGMAP={};let simTime=0;
  for(const [i,j] of IJ){const cx=10*i,cy=10*j;if(!ROADt(cx,cy)||RBMAP[i+','+j]||(cx<N&&BIGMASK[cy*N+cx]))continue;
    const arms={E:ROADt(cx+2,cy),W:ROADt(cx-1,cy),N:ROADt(cx,cy-1),S:ROADt(cx,cy+2)},n=Object.values(arms).filter(Boolean).length;
    if(n<3)continue;const J={i,j,x:(cx+1)*T,y:(cy+1)*T,arms,off:Math.random()*16};SIGJ.push(J);SIGMAP[i+','+j]=J}}
-function sigState(J,axis){const t=(simTime+J.off)%16;if(axis==='NS')return t<6.5?'green':t<8?'amber':'red';return t<8?'red':t<14.5?'green':t<16?'amber':'red'}
+function sigState(J,axis){const t=(simTime+J.off)%19;if(axis==='NS')return t<6.5?'green':t<8?'amber':'red';return t<9.5?'red':t<16?'green':t<17.5?'amber':'red'}
 const SIGSTOP=T*1.85;
 const solid=(x,y)=>{const t=tileP(x,y);if(t===BUILD||t===WATER)return true;if(t===SITET)return siteSolid(x,y);if(t===ROAD){const tx=Math.floor(x/T),ty=Math.floor(y/T);if(tx<N&&ty<N){const b=rbAtTile(tx,ty);if(b&&(x-b.x)**2+(y-b.y)**2<RB_IN*RB_IN)return true}else{for(const R of MWRB)if((x-R.x)**2+(y-R.y)**2<R.ri*R.ri)return true;const M=mwAtTile(tx,ty);if(M&&mwBarrier(M,x,y))return true}}if((x>=N*T||y>=N*T)&&outSolid(x,y))return true;return false};
 function mwBarrier(M,x,y){const H=M.dir==='h',u=H?x:y,w=H?y:x,wm=(M.c+1)*T,w0=(M.c-2)*T,w1=(M.c+4)*T;if(u>M.uE||u<M.uS)return false;if(u>M.uS+T&&Math.abs(w-wm)<10)return true;if(w<w0+11||w>w1-11){const D=DEPOTS.find(d=>d.M===M);if(D&&u>D.gap0&&u<D.gap1&&(D.side<0?w<w0+11:w>w1-11))return false;return true}return false}
@@ -427,7 +427,7 @@ const MISSIONS=[
  {title:'Wheels for Marlo',brief:'Marlo needs a clean car for tonight. Grab any motor and park it in his lock-up in the City.',reward:500,steps:[
    {text:'Get in a car. Any car.',done:()=>!!player.car},
    {text:'Drive it into Marlo’s lock-up in the City and stop.',at:'garage',car:true,slow:true}],
-   finish(){const c=player.car;if(c){exitCar();removeCar(c);}}},
+   finish(){const c=player.car;if(c){exitCar();if(c.type==='limo'||c.type==='shieldbus'){note('Marlo admires it, then hands you the keys back',2.6)}else removeCar(c);}}},
  {title:'Fish Run',brief:'A crate of fresh fish is waiting at the Southwark wharf. A Westminster café needs it across the river before it spoils.',reward:800,steps:[
    {text:'Pick up the crate at the Southwark wharf.',at:'docks'},
    {text:'Get it over the river to the café in Westminster.',at:'diner',timer:85}]},
@@ -694,11 +694,14 @@ function drive(c,dt,th,st,hb){
   if(c===player.car&&!c.wreck&&((Math.abs(lat)>130&&Math.abs(fwd)>60)||(hb&&Math.abs(fwd)>80))&&Math.random()<.35)emit(c.x-fx*t.L*.33,c.y-fy*t.L*.33,1,'tire');
   c.wheelSpin+=fwd*dt/5.5;
 }
-function circles(c){const fx=Math.cos(c.a),fy=Math.sin(c.a),o=c.t.L*.25,r=c.t.W*.56;return[[c.x+fx*o,c.y+fy*o,r],[c.x-fx*o,c.y-fy*o,r]]}
+// a chain of circles covering the whole body, so long buses and coaches collide end to end
+function circOff(t){if(!t.co){const r=t.W*.55,h=Math.max(0,t.L/2-r*.92),n=Math.max(1,Math.ceil(2*h/(r*1.3)));t.cr=r;t.co=[];for(let i=0;i<=n;i++)t.co.push(-h+2*h*i/n)}return t.co}
+function circles(c){const fx=Math.cos(c.a),fy=Math.sin(c.a),co=circOff(c.t),r=c.t.cr;return co.map(o=>[c.x+fx*o,c.y+fy*o,r])}
 function collideCars(){
   for(let i=0;i<cars.length;i++){const a=cars[i];
     for(let j=i+1;j<cars.length;j++){const b=cars[j];
-      if(Math.abs(a.x-b.x)>72||Math.abs(a.y-b.y)>72)continue;
+      const reach=(a.t.L+b.t.L)/2+4;if(Math.abs(a.x-b.x)>reach||Math.abs(a.y-b.y)>reach)continue;
+      if((a.ghost>0||b.ghost>0)&&a!==player.car&&b!==player.car)continue;
       const ca=circles(a),cb=circles(b);let done=false;
       for(const p of ca){if(done)break;for(const q of cb){
         const dx=q[0]-p[0],dy=q[1]-p[1],d=Math.hypot(dx,dy),r=p[2]+q[2];
@@ -710,7 +713,7 @@ function collideCars(){
           const rv=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
           if(rv<0){const jj=-1.35*rv/(1/ma+1/mb);a.vx-=jj/ma*nx;a.vy-=jj/ma*ny;b.vx+=jj/mb*nx;b.vy+=jj/mb*ny;
             const imp=-rv;
-            if(imp>90){damage(a,(imp-70)*.07);damage(b,(imp-70)*.07);emit((p[0]+q[0])/2,(p[1]+q[1])/2,Math.min(12,imp/25|0),'spark');
+            if(imp>(a===player.car||b===player.car||a.ai==='cop'||b.ai==='cop'?90:140)){damage(a,(imp-70)*.07);damage(b,(imp-70)*.07);emit((p[0]+q[0])/2,(p[1]+q[1])/2,Math.min(12,imp/25|0),'spark');
               if(a===player.car||b===player.car){crunch(Math.min(.4,imp/1200));const o=a===player.car?b:a;if(o.type==='police'&&o.ai==='cop'&&imp>120)addHeat(.35);else if(o.type==='police'&&o.ai!=='cop'&&imp>120&&!o.wreck)addHeat(1);}}}
           done=true;break;
         }}}
@@ -742,7 +745,8 @@ function trafficAI(c,dt){
   if(ai.rbCool&&dist(c.x,c.y,ai.rbCool.x,ai.rbCool.y)>ai.rbCool.ro+140)ai.rbCool=null;
   let orbG=null,rbTarget=1e9;
   if(ai.orb){const o=ai.orb,R=o.rb,ang=Math.atan2(c.y-R.y,c.x-R.x);let d=ang-o.last;while(d<-Math.PI)d+=2*Math.PI;while(d>Math.PI)d-=2*Math.PI;o.prog+=d;o.last=ang;
-    if(o.prog>=o.need-.3||o.t>14*R.rr/RB_RC){ai.dir=o.exit;ai.orb=null;ai.rbCool=R;ai.last=''}else{o.t+=dt;const ta=ang+.6*RB_RC/R.rr;orbG=[R.x+Math.cos(ta)*R.rr,R.y+Math.sin(ta)*R.rr];rbTarget=R.mw?210:115}}
+    if(o.t>14*R.rr/RB_RC&&!o.push){o.push=1.6;o.t=0}if(o.push>0)o.push-=dt;
+    if(o.prog>=o.need-.3){ai.dir=o.exit;ai.orb=null;ai.rbCool=R;ai.last=''}else{o.t+=dt;const ta=ang+.6*RB_RC/R.rr;orbG=[R.x+Math.cos(ta)*R.rr,R.y+Math.sin(ta)*R.rr];rbTarget=R.mw?210:115}}
   else if(!ai.pend){const R=rbNearAI(c.x,c.y);if(R&&R!==ai.rbCool){const along=(R.x-c.x)*dx+(R.y-c.y)*dy;
     if(along>0&&along<R.ro+150){
       const ent=Math.atan2(-dy,-dx),ex=R.x+Math.cos(ent)*R.rr,ey=R.y+Math.sin(ent)*R.rr;
@@ -761,24 +765,35 @@ function trafficAI(c,dt){
       const sOK=tileAt(tx+dx*2,ty+dy*2)===ROAD,oOK=tileAt(tx+off[0]*3,ty+off[1]*3)===ROAD,rOK=tileAt(tx-off[0]*3+dx,ty-off[1]*3+dy)===ROAD;
       if(oOK&&(!sOK||Math.random()<.3)){ai.pend=off;ai.pc=[(tx+.5)*T,(ty+.5)*T]}
       else if(!sOK&&rOK){ai.pend=[-off[0],-off[1]];ai.pc=[(tx+.5+dx)*T,(ty+.5+dy)*T]}
-      else if(!sOK){c.ai=null;c.abandoned=true;return drive(c,dt,0,0,true)}
+      else if(!sOK){if(dist(c.x,c.y,player.x,player.y)>650){c.gone=true;return}c.ai=null;c.abandoned=true;return drive(c,dt,0,0,true)}
     }}
   if(ai.pend){const along=(c.x-ai.pc[0])*dx+(c.y-ai.pc[1])*dy;if(along>=-6){ai.dir=ai.pend;ai.pend=null}}
   const [gx,gy]=orbG||laneTarget(c,ai,70);
   const diff=wrapA(Math.atan2(gy-c.y,gx-c.x)-c.a);
   const onMW=!!mwAtTile(Math.floor(c.x/T),Math.floor(c.y/T));let target=Math.min(ai.pend?95:onMW?ai.cruise*1.7:ai.cruise,rbTarget);if(Math.abs(diff)>.6&&!orbG)target=Math.min(target,90);
   if(!orbG){ // traffic lights: stop at the line on red, and on amber unless too close to stop
-    let J=null;if(dx!==0){let i=dx>0?Math.ceil((c.x/T-1)/10-1e-6):Math.floor((c.x/T-1)/10+1e-6);if(((10*i+1)*T-c.x)*dx<=0)i+=dx;J=SIGMAP[i+','+Math.round((c.y/T-1)/10)]}
-    else{let j=dy>0?Math.ceil((c.y/T-1)/10-1e-6):Math.floor((c.y/T-1)/10+1e-6);if(((10*j+1)*T-c.y)*dy<=0)j+=dy;J=SIGMAP[Math.round((c.x/T-1)/10)+','+j]}
-    if(J){const along=(J.x-c.x)*dx+(J.y-c.y)*dy,stopAt=SIGSTOP+c.t.L/2+4;
-      if(along>stopAt-8&&along<stopAt+320){const st=sigState(J,dy!==0?'NS':'EW');if(st==='red'||(st==='amber'&&along-stopAt>60))rbTarget=Math.min(rbTarget,Math.max(0,(along-stopAt)*1.3))}}}
+    let ji,jj;if(dx!==0){ji=dx>0?Math.ceil((c.x/T-1)/10-1e-6):Math.floor((c.x/T-1)/10+1e-6);if(((10*ji+1)*T-c.x)*dx<=0)ji+=dx;jj=Math.round((c.y/T-1)/10)}
+    else{jj=dy>0?Math.ceil((c.y/T-1)/10-1e-6):Math.floor((c.y/T-1)/10+1e-6);if(((10*jj+1)*T-c.y)*dy<=0)jj+=dy;ji=Math.round((c.x/T-1)/10)}
+    const J=SIGMAP[ji+','+jj],jx=(10*ji+1)*T,jy=(10*jj+1)*T,jAlong=(jx-c.x)*dx+(jy-c.y)*dy;
+    if(J){const stopAt=SIGSTOP+c.t.L/2+4;
+      if(jAlong>stopAt-8&&jAlong<stopAt+320){const st=sigState(J,dy!==0?'NS':'EW');if(st==='red'||(st==='amber'&&jAlong-stopAt>60))rbTarget=Math.min(rbTarget,Math.max(0,(jAlong-stopAt)*1.3))}}
+    // any ordinary junction: don't enter while something is crossing it, and wait for a gap before turning right across oncoming traffic
+    const jt=tileAt(10*ji,10*jj);
+    if(jt===ROAD&&!RBMAP[ji+','+jj]&&!mwAtTile(10*ji,10*jj)){const edge=T*1.05+c.t.L/2+6;
+      if(jAlong>edge-10&&jAlong<edge+140){const e=ai.pend||ai.dir,lx0=jx+e[1]*T*.5,ly0=jy-e[0]*T*.5,need=c.t.L+28;
+        for(const o of cars){if(o===c||Math.abs(o.fwd)>30)continue;const rx=o.x-lx0,ry=o.y-ly0,al=rx*e[0]+ry*e[1];if(al>T*.9-o.t.L/2&&al<T*.9+need+o.t.L/2&&Math.abs(-rx*e[1]+ry*e[0])<T*.42){rbTarget=Math.min(rbTarget,Math.max(0,(jAlong-edge)*1.2));c.why='exit:'+o.id;break}}}
+      if(jAlong>edge-10&&jAlong<edge+220){for(const o of cars){if(o===c||Math.abs(o.x-jx)>T*1.05||Math.abs(o.y-jy)>T*1.05)continue;const cross=Math.abs(Math.cos(o.a-c.a))<.6||(o.aiS&&o.aiS.pend);if(cross&&Math.hypot(o.vx,o.vy)>5||cross&&o.ai!=='traffic'){rbTarget=Math.min(rbTarget,Math.max(0,(jAlong-edge)*1.2));break}}}
+      if(ai.pend&&(ai.pend[0]!==dy||ai.pend[1]!==-dx)&&jAlong>-T*.4&&jAlong<T*1.6){ // a right turn (the pending turn isn't to the left)
+        for(const o of cars){if(o===c||!o.aiS||o.ai!=='traffic')continue;const od=o.aiS.dir;if(od[0]!==-dx||od[1]!==-dy)continue;const oa=(jx-o.x)*od[0]+(jy-o.y)*od[1];
+          if(oa>-T*.9&&oa<T*5&&Math.abs(o.fwd)>20){rbTarget=Math.min(rbTarget,Math.max(0,(jAlong+T*.2)*1.2));break}}}}}
+  target=Math.min(target,rbTarget);
   const fx=Math.cos(c.a),fy=Math.sin(c.a),look=c.t.L/2+70+Math.max(0,c.fwd)*.5;
   const blk=(x,y,w,ex=0)=>{const rx=x-c.x,ry=y-c.y,al=rx*fx+ry*fy;if(al<8||al>look+ex)return false;return Math.abs(-rx*fy+ry*fx)<w};
-  let blocked=false;
-  if(orbG){const R=ai.orb.rb,ca=Math.atan2(c.y-R.y,c.x-R.x),cr=Math.hypot(c.x-R.x,c.y-R.y);
+  let blocked=false,bo=null;if(c.ghost>0){c.ghost-=dt;target=Math.min(target,60)}
+  if(orbG){if(!(ai.orb.push>0)){const R=ai.orb.rb,ca=Math.atan2(c.y-R.y,c.x-R.x),cr=Math.hypot(c.x-R.x,c.y-R.y);
     for(const o of cars){if(o===c)continue;const oo=o.aiS&&o.aiS.orb;if(!(oo&&oo.rb===R)&&o!==player.car)continue;const oa=Math.atan2(o.y-R.y,o.x-R.x),orr=Math.hypot(o.x-R.x,o.y-R.y);let ahead=oa-ca;while(ahead<0)ahead+=2*Math.PI;
-      if(ahead>.05&&ahead<(c.t.L+o.t.L)/2/R.rr+.25*RB_RC/R.rr&&Math.abs(orr-cr)<40){blocked=true;break}}}
-  else for(const o of cars){if(o!==c&&Math.abs(o.x-c.x)<look+90&&Math.abs(o.y-c.y)<look+90&&blk(o.x,o.y,(c.t.W+o.t.W)/2-2,o.t.L/2)){blocked=true;break}}
+      if(ahead>.05&&ahead<(c.t.L+o.t.L)/2/R.rr+.25*RB_RC/R.rr&&Math.abs(orr-cr)<40){blocked=true;bo=o;break}}}}
+  else if(!(c.ghost>0))for(const o of cars){if(o!==c&&!o.gone&&Math.abs(o.x-c.x)<look+90&&Math.abs(o.y-c.y)<look+90&&blk(o.x,o.y,(c.t.W+o.t.W)/2-2,o.t.L/2)){blocked=true;bo=o;break}}
   if(!blocked&&!player.car&&blk(player.x,player.y,18))blocked=true;
   if(!blocked)for(const p of peds){if(p.st!=='down'&&Math.abs(p.x-c.x)<look&&Math.abs(p.y-c.y)<look&&blk(p.x,p.y,16)){blocked=true;break}}
   if(blocked)target=0;
@@ -793,7 +808,17 @@ function trafficAI(c,dt){
     else for(const bs of BUSSTOPS){if(bs===c.lastStop||bs.dx!==dx||Math.abs(c.y-bs.ly)>T*.35)continue;const al=(bs.x-(c.x+dx*c.t.L*.33))*dx;if(al>-12&&al<T*1.8){target=Math.min(target,al<18?0:al<T*.8?45:80);if(al<18&&Math.abs(c.fwd)<10){c.dwell=2.2;c.dwellT=0;c.nearStop=bs}break}}
   }
   let th=c.fwd<target-8?1:c.fwd>target+25?-1:0;if(target===0)th=c.fwd>4?-1:0;
-  if(Math.abs(c.fwd)<8&&!blocked&&rbTarget>1){c.stuck+=dt;if(c.stuck>7){c.ai=null;c.abandoned=true}}else c.stuck=0;
+  // wedged (not blocked, yet not moving): back up and try again; a car that keeps failing out of sight is towed away
+  const behind=()=>{for(const o of cars){if(o===c||Math.abs(o.x-c.x)>200||Math.abs(o.y-c.y)>200)continue;const rx=o.x-c.x,ry=o.y-c.y,al=rx*fx+ry*fy;if(al<-8&&al>-(c.t.L+o.t.L)/2-45&&Math.abs(-rx*fy+ry*fx)<(c.t.W+o.t.W)/2)return true}return!player.car&&(()=>{const rx=player.x-c.x,ry=player.y-c.y,al=rx*fx+ry*fy;return al<0&&al>-c.t.L/2-40&&Math.abs(-rx*fy+ry*fx)<c.t.W/2+14})()};
+  if(c.rev>0){c.rev-=dt;if(behind())c.rev=0;else{drive(c,dt,-.75,-clamp(diff*3,-1,1),false);return}}
+  if(Math.abs(c.fwd)<8&&target>30){c.stuck+=dt;if(c.stuck>4){c.stuck=0;c.recN=(c.recN||0)+1;if(c.recN>3&&dist(c.x,c.y,player.x,player.y)>650){c.gone=true;return}if(!behind()){c.rev=1.1;return}}}else{c.stuck=0;if(c.fwd>60)c.recN=0}
+  // gridlock breaker: held up a long time by something across our path, or by a dead car in the lane
+  c.bo=blocked?bo:null;
+  if(blocked&&bo){c.blockT=(c.blockT||0)+dt;
+    if(c.blockT>6){const dead=bo.ai!=='traffic'&&bo.ai!=='depot'&&bo.ai!=='cop'&&bo!==player.car&&Math.hypot(bo.vx,bo.vy)<5;
+      let cyc=false;for(let o=bo,k=0;o&&k<8;k++){if(o===c){cyc=true;break}o=(o.blockT||0)>2?o.bo:null}
+      if(dead&&!bo.keep&&dist(bo.x,bo.y,player.x,player.y)>500){bo.gone=true;c.blockT=0}
+      else if(dead||cyc){c.ghost=1.8;c.blockT=0}}}else c.blockT=0;
   drive(c,dt,th*.85,clamp(diff*3,-1,1),false);
 }
 function busDoor(c){const fx=Math.cos(c.a),fy=Math.sin(c.a),lx=Math.sin(c.a),ly=-Math.cos(c.a);return[c.x+fx*c.t.L*.33+lx*(c.t.W/2+8),c.y+fy*c.t.L*.33+ly*(c.t.W/2+8)]}
@@ -810,7 +835,9 @@ function copAI(c,dt){
   drive(c,dt,th,clamp(diff*3,-1,1),Math.abs(diff)>1.2&&c.fwd>220);
   if(Math.abs(c.fwd)<20&&!near){c.stuck+=dt;if(c.stuck>1.3){c.rev=.9;c.stuck=0}}else c.stuck=0;
 }
-function nearestCar(r){let best=null,bd=r;for(const c of cars){if(c.wreck||c.burn>0)continue;const d=dist(player.x,player.y,c.x,c.y);if(d<bd){bd=d;best=c}}return best}
+// distance from you to a vehicle's body (not its centre), so long buses and big cars can be entered from anywhere alongside
+function carGap(c,x,y){const fx=Math.cos(c.a),fy=Math.sin(c.a),rx=x-c.x,ry=y-c.y,al=rx*fx+ry*fy,lt=-rx*fy+ry*fx,ex=Math.max(0,Math.abs(al)-c.t.L/2),ey=Math.max(0,Math.abs(lt)-c.t.W/2);return Math.hypot(ex,ey)}
+function nearestCar(r){let best=null,bd=r-10;for(const c of cars){if(c.wreck||c.burn>0)continue;if(Math.abs(c.x-player.x)>220||Math.abs(c.y-player.y)>220)continue;const d=carGap(c,player.x,player.y);if(d<bd){bd=d;best=c}}return best}
 function tryAct(){
   if(freeze>0)return;
   if(player.car){exitCar();return}
@@ -836,6 +863,7 @@ const SHIRTS=['#d2643c','#3f7cc0','#e7d9b8','#5aa36e','#b84a7a','#d8b13d','#6b6b
 const SKIN=['#f1c9a5','#d9a479','#a8714a','#7a4a2c','#5a361f'];
 function spawnPed(x,y,st){peds.push({x,y,a:rr(-3.1,3.1),sp:rr(40,62),st:st||'walk',t:st==='flee'?3:rr(1,4),c:pick(SHIRTS),s:pick(SKIN),ph:Math.random()*6,mesh:null});}
 const walkable=t=>t===WALK||t===LOT||t===GRASS;
+const onRB=(x,y)=>{const R=RBMAP[Math.round((x/T-1)/10)+','+Math.round((y/T-1)/10)];return R&&Math.hypot(x-R.x,y-R.y)<R.ro+16?R:null};
 function knockPed(p){if(p.st==='down')return;p.st='down';p.t=rr(4,6);emit(p.x,p.y,5,'dust');}
 function updatePeds(dt){
   for(let i=peds.length-1;i>=0;i--)if(peds[i].gone)peds.splice(i,1);
@@ -851,8 +879,9 @@ function updatePeds(dt){
     if(pc){const d=dist(p.x,p.y,pc.x,pc.y),sp=Math.hypot(pc.vx,pc.vy);
       if(d<140&&sp>140){const away=Math.atan2(p.y-pc.y,p.x-pc.x),side=wrapA(away-Math.atan2(pc.vy,pc.vx))>0?1:-1;p.a=Math.atan2(pc.vy,pc.vx)+side*Math.PI/2;p.st='flee';p.t=1.4}}
     const sp=p.st==='flee'?150:p.sp;
+    const inR=p.st==='walk'&&onRB(p.x,p.y);if(inR)p.a=Math.atan2(p.y-inR.y,p.x-inR.x);
     const nx=p.x+Math.cos(p.a)*sp*dt,ny=p.y+Math.sin(p.a)*sp*dt,t=tileP(nx,ny);
-    if(t===BUILD||t===WATER||(p.st==='walk'&&!walkable(t)))p.a+=(Math.random()<.5?1:-1)*Math.PI/2+rr(-.3,.3);
+    if(!inR&&(t===BUILD||t===WATER||(p.st==='walk'&&(!walkable(t)||onRB(nx,ny)))))p.a+=(Math.random()<.5?1:-1)*Math.PI/2+rr(-.3,.3);
     else{p.x=nx;p.y=ny;p.ph+=dt*sp*.12}
     if(p.t<=0){if(p.st==='flee')p.st='walk';p.t=rr(2,6);if(Math.random()<.5)p.a+=rr(-1.2,1.2)}
     for(const c of cars){const s=Math.hypot(c.vx,c.vy);if(s<90)continue;if(Math.abs(c.x-p.x)>40||Math.abs(c.y-p.y)>40)continue;
@@ -925,7 +954,7 @@ function spawnCop(){
 }
 function spawnPedNear(){
   const f=focus();
-  for(let k=0;k<10;k++){const a=Math.random()*Math.PI*2,d=rr(420,950),x=f.x+Math.cos(a)*d,y=f.y+Math.sin(a)*d;if(tileP(x,y)!==WALK)continue;spawnPed(x,y);return}
+  for(let k=0;k<10;k++){const a=Math.random()*Math.PI*2,d=rr(420,950),x=f.x+Math.cos(a)*d,y=f.y+Math.sin(a)*d;if(tileP(x,y)!==WALK||onRB(x,y))continue;spawnPed(x,y);return}
 }
 let lotT=0,copT=0,stopPedT=0;
 // ---- coach depots: coaches pull out onto the motorway and others come in off it ----
@@ -1522,16 +1551,19 @@ const clockHands=[];
 // south bank observation wheel
 let eyeWheel=null;
 {
-  const x=13*T+3*T,z=53*T+1*T,hubY=150,R=135;
+  const x=13*T+3*T,z=53*T+1*T,hubY=335,R=300;
   const white=new THREE.MeshLambertMaterial({color:0xe8ebee}),lit=new THREE.MeshBasicMaterial({color:0xbfd8ff});
   eyeWheel=new THREE.Group();eyeWheel.position.set(x,hubY,z);
-  eyeWheel.add(new THREE.Mesh(new THREE.TorusGeometry(R,2.6,6,72),lit),new THREE.Mesh(new THREE.TorusGeometry(R-9,1.6,6,72),white));
-  for(let i=0;i<32;i++){const a=i/32*Math.PI*2;const sp=new THREE.Mesh(unitBox,white);sp.scale.set(.9,R,.9);sp.position.set(Math.cos(a)*R/2,Math.sin(a)*R/2,0);sp.rotation.z=a-Math.PI/2;eyeWheel.add(sp);
-    const pod=new THREE.Mesh(new THREE.SphereGeometry(5.5,10,8),new THREE.MeshPhongMaterial({color:0xcfe3ff,shininess:100,transparent:true,opacity:.85}));pod.scale.set(1,.7,1.4);pod.position.set(Math.cos(a)*(R+6),Math.sin(a)*(R+6),0);eyeWheel.add(pod)}
-  eyeWheel.add(new THREE.Mesh(new THREE.CylinderGeometry(8,8,22,16).rotateX(Math.PI/2),white));
+  eyeWheel.add(new THREE.Mesh(new THREE.TorusGeometry(R,5,8,96),lit),new THREE.Mesh(new THREE.TorusGeometry(R-20,3,6,96),white));
+  const podMat=new THREE.MeshPhongMaterial({color:0xcfe3ff,shininess:100,transparent:true,opacity:.85}),podGeo=new THREE.SphereGeometry(12,12,8);
+  for(let i=0;i<32;i++){const a=i/32*Math.PI*2;const sp=new THREE.Mesh(unitBox,white);sp.scale.set(1.6,R,1.6);sp.position.set(Math.cos(a)*R/2,Math.sin(a)*R/2,0);sp.rotation.z=a-Math.PI/2;eyeWheel.add(sp);
+    const pod=new THREE.Mesh(podGeo,podMat);pod.scale.set(1,.7,1.4);pod.position.set(Math.cos(a)*(R+13),Math.sin(a)*(R+13),0);eyeWheel.add(pod)}
+  eyeWheel.add(new THREE.Mesh(new THREE.CylinderGeometry(17,17,46,20).rotateX(Math.PI/2),white));
   scene.add(eyeWheel);
-  for(const s of [-1,1]){const leg=addMesh(unitBox,white,x+s*40,hubY/2,z+30);leg.scale.set(5,hubY*1.1,5);leg.rotation.z=s*.28;leg.rotation.x=-.2}
-  addMesh(unitBox,stonePlain,x,4,z+18).scale.set(2*T,8,2*T);
+  for(const s of [-1,1]){const leg=addMesh(unitBox,white,x+s*88,hubY/2,z+62);leg.scale.set(10,hubY*1.1,10);leg.rotation.z=s*.28;leg.rotation.x=-.2}
+  addMesh(unitBox,stonePlain,x,5,z+28).scale.set(3.6*T,10,3*T);
+  // boarding platform under the wheel
+  addMesh(unitBox,stonePlain,x,3,z).scale.set(1.6*T,6,.7*T);
 }
 // the City: domed cathedral
 {
@@ -4002,12 +4034,12 @@ function blockSide(bx,by,side,along=0){
 const SITE_AT_EARLY=0;const SITE_AT={palace:[3,3,'N'],zoo:[3,7,'N'],hospital:[1,6,'N'],fire:[5,6,'N'],playground:[0,2,'N'],school:[2,7,'N'],skcet:[0,6,'N'],rhul:[2,6,'N'],store:[4,2,'N']};
 const STATIC_OK={hospital:1,skcet:1,rhul:1,store:1};
 // compounds to fill edge to edge: centre x, centre z and size, in tiles
-const FILL={};for(const [n,[bx,by]] of Object.entries(SITE_AT)){const sz=6*(1-PARK_STRIP);FILL[n]=[10*bx+6,10*by+3+6*PARK_STRIP+sz/2,6,n==='store'?1.25:1,sz]}
+const FILL={};for(const [n,[bx,by]] of Object.entries(SITE_AT)){const big=n==='skcet',sz=big?6:6*(1-PARK_STRIP);FILL[n]=[10*bx+6,10*by+3+(big?0:6*PARK_STRIP)+sz/2,6,n==='store'?1.25:1,sz,big?1.3:1]}
 // people, children and animals inside a scene: back to normal human scale (about 13 units per metre), whatever the scene's scale
 function normalFigures(h){
   const S=new THREE.Vector3();h.matrix.decompose(new THREE.Vector3(),new THREE.Quaternion(),S);const k=13/S.x;if(Math.abs(k-1)<.03)return;
   const figs=[];h.traverse(o=>{if(o!==h&&o.userData&&(o.userData.legs||o.userData.arms)){let p=o.parent,inner=false;while(p&&p!==h){if(p.userData&&(p.userData.legs||p.userData.arms)){inner=true;break}p=p.parent}if(!inner)figs.push(o)}});
-  for(const f of figs)f.scale.multiplyScalar(k);h.updateMatrixWorld(true);
+  const yb=h.userData.yb||1;for(const f of figs){f.scale.multiplyScalar(k);f.scale.y/=yb}h.updateMatrixWorld(true);
 }
 // solid parts of a scene (buildings, walls, big trees): boxes the player and police collide with; everything else is open ground
 function addSolids(h){
@@ -4015,16 +4047,16 @@ function addSolids(h){
   for(const b of list){let x0=1e9,z0=1e9,x1=-1e9,z1=-1e9;for(const [x,z] of [[b[0],b[2]],[b[1],b[2]],[b[0],b[3]],[b[1],b[3]]]){v.set(x,0,z).applyMatrix4(h.matrixWorld);x0=Math.min(x0,v.x);x1=Math.max(x1,v.x);z0=Math.min(z0,v.z);z1=Math.max(z1,v.z)}
     const k=Math.floor(x0/T/10)+','+Math.floor(z0/T/10),k2=Math.floor(x1/T/10)+','+Math.floor(z1/T/10);for(const kk of new Set([k,k2]))(SOLIDS[kk]=SOLIDS[kk]||[]).push([x0,z0,x1,z1])}
 }
-function fillCompound(h,cx,cz,size,boost=1,sizeZ=size){
+function fillCompound(h,cx,cz,size,boost=1,sizeZ=size,yb=1){
   h.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(h.children[0]),w=bb.max.x-bb.min.x,d=bb.max.z-bb.min.z;
   const f=Math.min((size-12)/w,(sizeZ-12)/d)*boost,bcx=(bb.min.x+bb.max.x)/2,bcz=(bb.min.z+bb.max.z)/2;
-  const M=new THREE.Matrix4().makeTranslation(cx,0,cz).multiply(new THREE.Matrix4().makeScale(f,f,f)).multiply(new THREE.Matrix4().makeTranslation(-bcx,0,-bcz));
-  h.matrix.premultiply(M);h.matrixWorldNeedsUpdate=true;h.updateMatrixWorld(true);
+  const M=new THREE.Matrix4().makeTranslation(cx,0,cz).multiply(new THREE.Matrix4().makeScale(f,f*yb,f)).multiply(new THREE.Matrix4().makeTranslation(-bcx,0,-bcz));
+  h.matrix.premultiply(M);h.matrixWorldNeedsUpdate=true;h.updateMatrixWorld(true);h.userData.yb=yb;
   const x=XHOLD.find(o=>o.h===h);if(x){const b2=new THREE.Box3().setFromObject(h.children[0]);x.c=b2.getCenter(new THREE.Vector3());x.r=b2.getSize(new THREE.Vector3()).length()/2}
 }
 for(const [name,[bx,by,side,along,scale,span]] of Object.entries(SITE_AT)){
   const sg=(segsBy[name]||[])[0];if(!sg)continue;const r=blockSide(bx,by,side,along||0),W=(span||8)*T;
-  try{const h=placeSeg(sg.items,r.road,r.to,{scale:scale,fit:{w:W-8,d:W+20,kerb:T*.95},merge:!!STATIC_OK[name],solids:true});const F=FILL[name];if(F&&h){fillCompound(h,F[0]*T,F[1]*T,F[2]*T,F[3]||1,F[4]*T);normalFigures(h);addSolids(h)}}catch(e){console.warn('scene',name,e)}
+  try{const h=placeSeg(sg.items,r.road,r.to,{scale:scale,fit:{w:W-8,d:W+20,kerb:T*.95},merge:!!STATIC_OK[name],solids:true});const F=FILL[name];if(F&&h){fillCompound(h,F[0]*T,F[1]*T,F[2]*T,F[3]||1,F[4]*T,F[5]||1);normalFigures(h);addSolids(h)}}catch(e){console.warn('scene',name,e)}
 }
 // SHIELD flags at the start, beside Marlo's kiosk
 if(XD.shieldFlagPole)for(const dx of [-1.9,1.9]){const g=new THREE.Group();g.position.set(PLACES.phone.x+dx*T,0,22.3*T);g.scale.setScalar(SC);XD.shieldFlagPole(g,0,0,11,4.2);g.rotation.y=-Math.PI/2;scene.add(g)}
