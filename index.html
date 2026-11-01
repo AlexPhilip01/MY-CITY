@@ -114,7 +114,14 @@ button:focus-visible{outline:2px solid var(--sodium);outline-offset:2px}
 body.touch #mini{left:auto;right:max(16px,env(safe-area-inset-right,0px));bottom:auto;top:calc(env(safe-area-inset-top,0px) + 150px);width:104px;height:104px}
 body.touch #prompt{bottom:calc(env(safe-area-inset-bottom,0px) + 190px)}
 body.touch #zone{bottom:calc(env(safe-area-inset-bottom,0px) + 236px)}
-body.touch #topbtns{right:auto;left:50%;transform:translateX(-50%);bottom:auto;top:calc(env(safe-area-inset-top,0px) + 56px);max-width:92vw;justify-content:center}
+#menuBtn{display:none}
+/* phones and tablets: the buttons fold away behind a Menu chip under the stats, so they never cover the mission panel or the map */
+body.touch #menuBtn{display:block;position:fixed;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 132px);z-index:3;padding:7px 12px;font-size:12px}
+body.touch #menuBtn[aria-expanded="true"]{color:var(--ink);border-color:var(--sodium)}
+body.touch #topbtns{display:none;right:max(16px,env(safe-area-inset-right,0px));left:auto;transform:none;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 172px);max-width:min(300px,calc(100vw - 32px));flex-direction:column;align-items:stretch;padding:8px;z-index:3;background:rgba(14,18,21,.92);border:1px solid var(--line);border-radius:10px}
+body.touch #topbtns.open{display:flex}
+body.touch #topbtns .chip{padding:10px 12px;font-size:13px;text-align:left}
+body.touch #mini{top:calc(env(safe-area-inset-top,0px) + 176px)}
 @media (max-width:520px){#cash{font-size:22px}.bar .track{width:96px}#mission{max-width:50vw}#compass{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 168px)}body.touch #compass{bottom:calc(env(safe-area-inset-bottom,0px) + 280px)}}
 @media (prefers-reduced-motion:reduce){#stars.search svg.on{animation:none;fill:var(--sodium)}#toast,#zone{transition:none}}
 </style>
@@ -132,6 +139,7 @@ body.touch #topbtns{right:auto;left:50%;transform:translateX(-50%);bottom:auto;t
   <div id="arrest"></div>
 </div>
 <canvas id="mini" aria-label="City map"></canvas>
+<button class="chip" id="menuBtn" type="button" aria-expanded="false" aria-controls="topbtns">Menu</button>
 <div id="topbtns"><a class="chip" href="https://alexphilip01.github.io/index.html" target="_blank" rel="noopener">Alex Philip · Available for opportunities</a><button class="chip on" id="tourBtn" type="button">Portfolio tour on</button><button class="chip" id="carBtn" type="button">Call my car</button><button class="chip" id="mapBtn" type="button">Map</button><button class="chip" id="camBtn" type="button">Chase cam</button><button class="chip" id="rainBtn" type="button">Rain on</button><button class="chip" id="muteBtn" type="button">Sound on</button><button class="chip" id="pauseBtn" type="button">Pause</button></div>
 <div id="prompt" class="panel" hidden></div>
 <div id="zone"></div>
@@ -599,6 +607,8 @@ function input(){
   return{mx,my,th,st,hb:!!keys[' '],sprint:!!keys.shift};
 }
 if(isTouch){document.body.classList.add('touch');$('touch').hidden=false;touch.on=true;}
+{const mb=$('menuBtn'),tb=$('topbtns'),setM=o=>{tb.classList.toggle('open',o);mb.setAttribute('aria-expanded',o?'true':'false');mb.textContent=o?'Close':'Menu'};
+ mb.addEventListener('click',()=>setM(!tb.classList.contains('open')));tb.addEventListener('click',e=>{if(e.target.closest('.chip'))setTimeout(()=>setM(false),120)})}
 {
   const joy=$('joy'),knob=$('knob');let pid=null;
   const setK=e=>{const r=joy.getBoundingClientRect();let dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);const l=Math.hypot(dx,dy),R=r.width/2;if(l>R){dx*=R/l;dy*=R/l}touch.jx=dx/R;touch.jy=dy/R;knob.style.transform=`translate(${dx}px,${dy}px)`;};
