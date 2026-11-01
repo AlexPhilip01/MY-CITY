@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Drive through Alex Philip's cybersecurity portfolio in a 3D London, with motorways to six towns, trains, coaches and police chases.">
+<meta name="description" content="Smoke & Sirens: drive through Alex Philip's cybersecurity portfolio in a 3D London, with motorways to six towns, trains, coaches and police chases.">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:title" content="Smoke & Sirens">
+<meta property="og:description" content="Drive through Alex Philip's cybersecurity portfolio in a 3D London.">
+<meta property="og:image" content="shield.jpg">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -261,7 +266,7 @@ const MWS=[
  {name:'M50',dir:'v',c:-140,a:42,b:61,town:'Ashcombe',from:'Westbury',link:true},
  {name:'M50',dir:'h',c:60,a:-139,b:-110,town:'Ashcombe',from:'Westbury',link:true,cornerA:true}];
 // how each motorway ends: a big roundabout at a town, a corner roundabout, or straight into a street grid
-for(const M of MWS){M.out=M.rev?-1:1;if(!M.link)M.rbEnd=M.rev?'a':'b';else if(!M.cornerA)M.cornerB=true}
+for(const M of MWS){M.out=M.rev?-1:1;if(!M.link)M.rbEnd=M.rev?'a':'b';else if(!M.cornerA)M.cornerB=true;const rbOK=!(M.link&&M.b-M.a<25);M.rbA=!M.cornerA&&rbOK;M.rbB=!M.cornerB&&rbOK;M.spA=M.cornerA?0:M.rbA?7:3;M.spB=M.cornerB?0:M.rbB?7:3}
 // big roundabouts where the links turn their corners (arms: 0 east, 1 south, 2 west, 3 north)
 const CORNERS=[{x:211,y:61,arms:[2,3]},{x:181,y:151,arms:[2,3]},{x:81,y:171,arms:[2,3]},{x:-139,y:61,arms:[0,3]}];
 const TOWNS=[
@@ -298,7 +303,7 @@ function addOutBox(x0,z0,x1,z1){for(let cx=Math.floor(x0/T/10);cx<=Math.floor(x1
 function addOutCircle(x,z,r){for(let cx=Math.floor((x-r)/T/10);cx<=Math.floor((x+r)/T/10);cx++)for(let cz=Math.floor((z-r)/T/10);cz<=Math.floor((z+r)/T/10);cz++)(OUTSOL[cx+','+cz]=OUTSOL[cx+','+cz]||[]).push({c:[x,z,r*r]})}
 function outSolid(x,z){const L=OUTSOL[outKey(x,z)];if(!L)return false;for(const o of L){if(o.b){if(x>o.b[0]&&x<o.b[2]&&z>o.b[1]&&z<o.b[3])return true}else if((x-o.c[0])**2+(z-o.c[1])**2<o.c[2])return true}return false}
 function townAt(tx,ty){for(const W of TOWNS)if(tx>=W.ox&&tx<W.ox+W.w&&ty>=W.oy&&ty<W.oy+W.h)return W;return null}
-function mwAtTile(tx,ty){for(const M of MWS){if(M.dir==='h'){if(ty>=M.c-2&&ty<=M.c+3&&tx>=M.a&&tx<M.b)return M}else if(tx>=M.c-2&&tx<=M.c+3&&ty>=M.a&&ty<M.b)return M}return null}
+function mwAtTile(tx,ty){for(const M of MWS){const H=M.dir==='h',u=H?tx:ty,w=H?ty:tx;if(w>=M.c-2&&w<=M.c+3&&u>=M.a&&u<M.b){if(u<M.a+M.spA||u>=M.b-M.spB)return (w===M.c||w===M.c+1)?M:null;return M}}return null}
 function tileAtOut(tx,ty){
   const W=townAt(tx,ty);
   if(W){const lx=mod10(tx),ly=ty%10;if(lx<2||ly<2)return ROAD;if(lx===2||lx===9||ly===2||ly===9)return WALK;
@@ -345,7 +350,8 @@ const RBMAP={};RBS.forEach(r=>{RBMAP[r.i+','+r.j]=r;r.ri=RB_IN;r.rr=RB_RC;r.ro=R
 const bigRB=(x,y,mw,arms)=>{const R={k:RBS.length,x,y,ri:Math.round(T*1.5),rr:Math.round(T*2.75),ro:Math.round(T*4.1),mw,arms};RBS.push(R);MWRB.push(R);return R};
 const RO=Math.round(T*4.1);
 for(const M of MWS){const H=M.dir==='h';M.uS=M.a*T+T;M.uE=M.b*T-T;
-  if(M.rbEnd){const u=(M.rbEnd==='b'?M.b-5:M.a+5)*T,w=(M.c+1)*T,R=bigRB(H?u:w,H?w:u,M,H?[0,2]:[1,3]);R.narrow=M.rbEnd==='b'?(H?0:1):(H?2:3);M.rb=R;if(M.rbEnd==='b')M.uE=u-RO-T*.6;else M.uS=u+RO+T*.6}
+  if(!M.cornerA&&!M.rbA)M.uS=(M.a+M.spA)*T+T*.5;if(!M.cornerB&&!M.rbB)M.uE=(M.b-M.spB)*T-T*.5;
+  for(const e of ['a','b']){if((e==='a'&&!M.rbA)||(e==='b'&&!M.rbB))continue;const u=(e==='b'?M.b-7:M.a+7)*T,w=(M.c+1)*T,R=bigRB(H?u:w,H?w:u,M,H?[0,2]:[1,3]);R.narrow=e==='b'?(H?0:1):(H?2:3);if(M.rbEnd===e)M.rb=R;if(e==='b')M.uE=u-RO-T*.6;else M.uS=u+RO+T*.6}
   if(M.cornerB)M.uE=M.b*T-RO-T*.6;if(M.cornerA)M.uS=M.a*T+RO+T*.6;M.rbStop=M.uE}
 for(const C of CORNERS){const M=MWS.find(m=>m.link&&((m.dir==='h'&&(m.b===C.x||m.a===C.x)&&m.c+1===C.y)||(m.dir==='v'&&(m.b===C.y||m.a===C.y)&&m.c+1===C.x)));bigRB(C.x*T,C.y*T,M,C.arms)}
 const rbAtTile=(tx,ty)=>{const lx=tx%10,ly=ty%10;return lx<2&&ly<2?RBMAP[Math.floor(tx/10)+','+Math.floor(ty/10)]||null:null};
@@ -393,10 +399,11 @@ Object.assign(TYPES.bus,{L:165,W:50,mass:4.2,max:285,acc:210});
 Object.assign(TYPES.sedan,{L:82,W:35,max:600,acc:600,grip:7.2,mass:1.5});
 Object.assign(TYPES.limo,{max:820,acc:780,grip:9.2,mass:4.6});
 TYPES.coach={L:178,W:50,max:430,acc:250,grip:5.6,mass:4.4};
+TYPES.shieldbus={L:165,W:50,max:330,acc:250,grip:5.4,mass:4.3};
 const PAINT=['#b8b9b4','#2c3e57','#7a1f2b','#e4e1d8','#3f5a46','#58606a','#1f2328','#9a7b4f','#4a6a8a','#c9c3b4','#6b2e3a'];
 let cid=0;
 const cars=[],peds=[],parts=[],cash=[];
-function makeCar(type,x,y,a){const t=TYPES[type];return{id:++cid,type,t,x,y,a,vx:0,vy:0,fwd:0,lat:0,hp:100,color:type==='coach'?pick(['#f4f4f0','#1f4fa8','#c8102e','#2f8f6f','#6a4c93']):type==='limo'?'#fbfaf7':type==='ambulance'?'#f0d23a':type==='fire'?'#c8102e':type==='taxi'?'#16181b':type==='bus'?'#c4161c':type==='police'?'#eeeee8':pick(PAINT),ai:null,burn:0,wreck:false,brake:false,keep:false,abandoned:false,stuck:0,rev:0,aiS:null,mesh:null,wheelSpin:0}}
+function makeCar(type,x,y,a){const t=TYPES[type];return{id:++cid,type,t,x,y,a,vx:0,vy:0,fwd:0,lat:0,hp:100,color:type==='shieldbus'?'#0e0e11':type==='coach'?pick(['#f4f4f0','#1f4fa8','#c8102e','#2f8f6f','#6a4c93']):type==='limo'?'#fbfaf7':type==='ambulance'?'#f0d23a':type==='fire'?'#c8102e':type==='taxi'?'#16181b':type==='bus'?'#c4161c':type==='police'?'#eeeee8':pick(PAINT),ai:null,burn:0,wreck:false,brake:false,keep:false,abandoned:false,stuck:0,rev:0,aiS:null,mesh:null,wheelSpin:0}}
 const player={x:0,y:0,a:0,hp:100,car:null,cash:0,kx:0,ky:0,hurt:0,walk:0,calm:0,moving:0};
 let heat=0,hideT=0,arrestT=0,freeze=0,state='title',paused=false,crimeCool=0,sprayArmed=true,phoneArmed=true;
 let camYaw=0,orbit=0,shake=0,dragging=false;
@@ -411,6 +418,7 @@ function fillLot(b,n){
   }
 }
 for(const b of [...blocks,...TOWNBLOCKS])if(b.kind==='lot'&&!NOPARK[b.key])fillLot(b,2+Math.floor(rnd()*3));
+{const sb=makeCar('shieldbus',72.5*T,25.6*T,Math.PI/2);sb.keep=true;cars.push(sb)}
 {const c=makeCar('limo',23.2*T,21.72*T,Math.PI);c.keep=true;cars.push(c);}
 for(let i=0;i<46;i++){for(let k=0;k<30;k++){const tx=Math.floor(rnd()*N),ty=Math.floor(rnd()*N);if(tileAt(tx,ty)===WALK){cash.push({x:(tx+.5)*T,y:(ty+.5)*T,amt:[25,40,60,100][Math.floor(rnd()*4)],t:0,mesh:null});break;}}}
 
@@ -723,7 +731,7 @@ function explode(c){
 function laneTarget(c,ai,ahead){
   const [dx,dy]=ai.dir;
   const M=mwAtTile(Math.floor(c.x/T),Math.floor(c.y/T));let ln=0;
-  if(M){const u=M.dir==='h'?c.x/T:c.y/T;if(u>M.a+4&&u<M.b-4)ln=ai.mwLane||0}
+  if(M){const u=M.dir==='h'?c.x/T:c.y/T;if(u>M.a+M.spA+3&&u<M.b-M.spB-3)ln=ai.mwLane||0}
   if(dx===0){const k=Math.round((c.x/T-1)/10);let col=10*k+(dy>0?1:0);if(M&&M.dir==='v'&&k*10===M.c)col+=dy>0?ln:-ln;return[(col+.5)*T,c.y+dy*ahead]}
   const k=Math.round((c.y/T-1)/10);let row=10*k+(dx>0?0:1);if(M&&M.dir==='h'&&k*10===M.c)row+=dx>0?-ln:ln;
   return[c.x+dx*ahead,(row+.5)*T];
@@ -774,7 +782,7 @@ function trafficAI(c,dt){
   if(!blocked&&!player.car&&blk(player.x,player.y,18))blocked=true;
   if(!blocked)for(const p of peds){if(p.st!=='down'&&Math.abs(p.x-c.x)<look&&Math.abs(p.y-c.y)<look&&blk(p.x,p.y,16)){blocked=true;break}}
   if(blocked)target=0;
-  if(c.type==='bus'&&dy===0&&!orbG){
+  if((c.type==='bus'||c.type==='shieldbus')&&dy===0&&!orbG){
     if(c.dwell>0){target=0;
       if(!c.dwellT){c.alight=Math.random()<.8?1+Math.floor(Math.random()*3):0;c.altT=.7}
       c.dwellT=(c.dwellT||0)+dt;c.altT-=dt;
@@ -833,7 +841,7 @@ function updatePeds(dt){
   for(let i=peds.length-1;i>=0;i--)if(peds[i].gone)peds.splice(i,1);
   const pc=player.car;
   for(const p of peds){
-    if(p.st==='wait'){for(const c of cars)if(c.type==='bus'&&c.dwell>0&&c.nearStop===p.stop){p.st='board';p.bus=c;break}continue}
+    if(p.st==='wait'){for(const c of cars)if((c.type==='bus'||c.type==='shieldbus')&&c.dwell>0&&c.nearStop===p.stop){p.st='board';p.bus=c;break}continue}
     if(p.st==='board'){const c=p.bus;if(!c||!(c.dwell>0)||cars.indexOf(c)<0){p.st='walk';p.bus=null;p.t=2;continue}
       const [bx,by]=busDoor(c),d=dist(p.x,p.y,bx,by);if(d<12){p.gone=true;c.pax=(c.pax||0)+1;continue}
       p.a=Math.atan2(by-p.y,bx-p.x);const st=Math.min(d,85*dt);p.x+=Math.cos(p.a)*st;p.y+=Math.sin(p.a)*st;p.ph+=dt*11;continue}
@@ -893,6 +901,7 @@ function spawnTraffic(){
     let dir,cx,cy,mwLane=Math.floor(Math.random()*3),typeOverride=null;
     const Mb=mwAtTile(tx,ty);
     if(Mb&&Math.random()<.24)typeOverride='coach';
+    if(Math.random()<(Mb?.07:.06))typeOverride='shieldbus';
     if(Mb&&Mb.dir==='h'){dir=ty<=Mb.c?[1,0]:[-1,0];mwLane=ty<=Mb.c?Mb.c-ty:ty-Mb.c-1;cx=x;cy=(ty+.5)*T}
     else if(Mb){dir=tx>=Mb.c+1?[0,1]:[0,-1];mwLane=tx>=Mb.c+1?tx-Mb.c-1:Mb.c-tx;cx=(tx+.5)*T;cy=y}
     else if(lx<2){dir=lx===0?[0,-1]:[0,1];cx=(tx+.5)*T;cy=y}else{dir=ly===0?[1,0]:[-1,0];cx=x;cy=(ty+.5)*T}
@@ -1019,7 +1028,7 @@ function update(dt){
     if(sprayArmed&&sd<70){sprayArmed=false;const c=player.car;
       if(heat<1&&c.hp>=100)note('Nothing to fix. Come back with heat on you.',2.2);
       else if(player.cash<100)note('A respray costs \u00a3100',2);
-      else{player.cash-=100;heat=0;hideT=0;for(const o of cars)if(o.ai==='cop')o.ai='idle';c.hp=100;c.burn=0;if(c.type!=='police'&&c.type!=='taxi'&&c.type!=='bus'&&c.type!=='coach'&&c.type!=='limo'&&c.type!=='ambulance'&&c.type!=='fire'){c.color=pick(PAINT.filter(p=>p!==c.color));if(c.mesh&&c.mesh.userData.body.isMaterial)c.mesh.userData.body.color.set(c.color)}big('Fresh paint','Heat cleared and the car is repaired. −£100',2.4);blip(600,.1);save()}}
+      else{player.cash-=100;heat=0;hideT=0;for(const o of cars)if(o.ai==='cop')o.ai='idle';c.hp=100;c.burn=0;if(c.type!=='police'&&c.type!=='taxi'&&c.type!=='bus'&&c.type!=='shieldbus'&&c.type!=='coach'&&c.type!=='limo'&&c.type!=='ambulance'&&c.type!=='fire'){c.color=pick(PAINT.filter(p=>p!==c.color));if(c.mesh&&c.mesh.userData.body.isMaterial)c.mesh.userData.body.color.set(c.color)}big('Fresh paint','Heat cleared and the car is repaired. −£100',2.4);blip(600,.1);save()}}
     player.calm+=dt;if(player.calm>8&&player.hp<100)player.hp=Math.min(100,player.hp+dt*2);
     const dn=DISTRICTS[districtAt(player.x,player.y)].name;if(dn!==lastZone){lastZone=dn;note(dn,2.4)}
   }
@@ -1110,7 +1119,8 @@ function paintGround(g,s,tx0=0,tx1=N,ty0=0,ty1=N){
   // motorway: hard shoulders, lane lines, central reservation
   for(const M of MWS){ // motorways: hard shoulders, three lanes each way, central reservation
     g.save();if(M.dir==='v'){g.transform(0,1,1,0,0,0)} // draw vertical ones with the axes swapped
-    const x0=M.a*T,x1=M.b*T,z0=(M.c-2)*T,z1=(M.c+4)*T,zm=(M.c+1)*T;
+    const x0=(M.a+M.spA)*T,x1=(M.b-M.spB)*T,z0=(M.c-2)*T,z1=(M.c+4)*T,zm=(M.c+1)*T;
+    g.fillStyle='#2b2e32';if(M.spA)g.fillRect(M.a*T,M.c*T,M.spA*T,2*T);if(M.spB)g.fillRect((M.b-M.spB)*T,M.c*T,M.spB*T,2*T);
     g.fillStyle='#2b2e32';g.fillRect(x0,z0,x1-x0,z1-z0);
     g.fillStyle='#f0eee6';g.fillRect(x0,z0+T*.16,x1-x0,4);g.fillRect(x0,z1-T*.16-4,x1-x0,4);
     for(let x=x0+T;x<x1-T;x+=70){for(const zl of [(M.c-1)*T,M.c*T,(M.c+2)*T,(M.c+3)*T])g.fillRect(x,zl-2,36,4)}
@@ -1350,7 +1360,7 @@ const BELISHA=new THREE.MeshBasicMaterial({color:0xffb02e});
 }
 // ---- coach depots: rows of parked coaches, a big shed with the SHIELD name, fuel pumps ----
 {
-  const liv=[0xf4f4f0,0x1f4fa8,0xc8102e,0x2f8f6f,0xf0c02e,0x6a4c93];
+  const liv=[0xf4f4f0,0x1f4fa8,0xc8102e,0x2f8f6f,0xf0c02e,0x6a4c93,0x111114,0x111114];
   const slots=[];
   for(const D of DEPOTS){const P=(u,w)=>D.H?[u,w]:[w,u];
     for(const rw of [1.6,3.6,5.6])for(let u=D.u0+T*.3+T*.275;u<D.u1-T*.3;u+=T*.62){const w=D.edge+D.side*(rw+.75)*T;slots.push({p:P(u,w),a:D.H?Math.PI/2:0,c:liv[Math.floor(rnd()*liv.length)]})}
@@ -4162,6 +4172,7 @@ const CM={tire:new THREE.MeshLambertMaterial({color:0x141414}),glass:new THREE.M
 function part(mat,w,h,d,x,y,z,sh){const m=new THREE.Mesh(unitBox,mat);m.scale.set(w,h,d);m.position.set(x,y,z);if(sh)m.castShadow=true;return m}
 function buildCar(c){
   if(c.type==='coach')return buildCoach(c);
+  if(c.type==='shieldbus')return buildShieldBus(c);
   const dm=driveCarMesh(c);if(dm)return dm;
   const g=new THREE.Group(),L=c.t.L,W=c.t.W,bus=c.type==='bus',van=c.type==='van'||bus,sp=c.type==='sports',base=4.5,bh=bus?36:van?21:sp?9:11;
   const body=new THREE.MeshLambertMaterial({color:c.color});
@@ -4180,12 +4191,31 @@ function buildCar(c){
   g.userData=ud;return g;
 }
 const COACHSIDE=(()=>{const c=document.createElement('canvas');c.width=512;c.height=64;const x=c.getContext('2d');x.fillStyle='rgba(0,0,0,0)';x.clearRect(0,0,512,64);x.fillStyle='#ffffff';x.font='bold 40px Arial';x.textAlign='center';x.fillText('SHIELD  EXPRESS  ·  M40  M4  M1  M3',256,46);const t=new THREE.CanvasTexture(c);return t})();
+const SHIELDBLIND=(()=>{const c=document.createElement('canvas');c.width=256;c.height=48;const x=c.getContext('2d');x.fillStyle='#111';x.fillRect(0,0,256,48);x.fillStyle='#ffb347';x.font='bold 30px Arial';x.textAlign='center';x.fillText('X1  SHIELD HQ',128,34);return new THREE.CanvasTexture(c)})();
+const SHIELDWORD=(()=>{const c=document.createElement('canvas');c.width=512;c.height=96;const x=c.getContext('2d');x.clearRect(0,0,512,96);x.fillStyle='#d4a83a';x.font='bold 64px Arial';x.textAlign='left';x.fillText('SHIELD',150,66);x.font='22px Arial';x.fillStyle='#e9cf7a';x.fillText('DETECT · DEFEND · RESPOND',152,90);return new THREE.CanvasTexture(c)})();
+function buildShieldBus(c){
+  const g=new THREE.Group(),L=c.t.L,W=c.t.W,body=new THREE.MeshPhongMaterial({color:0x0e0e11,shininess:70,specular:0x444444}),gold=new THREE.MeshPhongMaterial({color:0xd4a83a,shininess:80,specular:0xffeeaa}),tail=new THREE.MeshBasicMaterial({color:0x5a1010});
+  const H=78,base=10;
+  g.add(part(body,L,H,W,0,base+H/2,0,true));
+  // two decks of tinted glass, gold bands between and along the skirt
+  g.add(part(CM.glass,L*.86,15,W+1.2,-L*.02,base+H*.36,0),part(CM.glass,L*.92,15,W+1.2,0,base+H*.78,0),part(CM.glass,2,22,W*.88,L/2+.6,base+H*.36,0),part(CM.glass,2,15,W*.88,L/2+.6,base+H*.78,0));
+  g.add(part(gold,L*1.002,3,W+1.6,0,base+H*.56,0),part(gold,L*1.002,4,W+1.6,0,base+6,0),part(gold,L*.98,2,W*.96,0,base+H+1,0));
+  g.add(part(body,L*.98,2.5,W*.96,0,base+H+2.6,0));
+  // the SHIELD logo and name on both sides, the destination blind up front
+  const logoM=XD.shieldMat?new THREE.MeshBasicMaterial({map:XD.shieldTex}):gold;
+  for(const sd of [-1,1]){const lg=new THREE.Mesh(new THREE.PlaneGeometry(22,22),logoM);lg.position.set(-L*.28,base+H*.58+11-1,sd*(W/2+1.2));lg.rotation.y=sd>0?0:Math.PI;g.add(lg);
+    const wd=new THREE.Mesh(new THREE.PlaneGeometry(L*.55,L*.1),new THREE.MeshBasicMaterial({map:SHIELDWORD,transparent:true}));wd.position.set(L*.05,base+H*.19,sd*(W/2+1.2));wd.rotation.y=sd>0?0:Math.PI;g.add(wd)}
+  const bl=new THREE.Mesh(new THREE.PlaneGeometry(W*.8,9),new THREE.MeshBasicMaterial({map:SHIELDBLIND}));bl.position.set(L/2+1.2,base+H*.6,0);bl.rotation.y=Math.PI/2;g.add(bl);
+  g.add(part(CM.head,1,5,8,L/2+.6,20,-W*.33),part(CM.head,1,5,8,L/2+.6,20,W*.33),part(tail,1,6,8,-L/2-.6,22,-W*.33),part(tail,1,6,8,-L/2-.6,22,W*.33));
+  const wheels=[];for(const [sx,sz] of [[.32,1],[.32,-1],[-.3,1],[-.3,-1]]){const w=new THREE.Mesh(CG.wheel,CM.tire);w.rotation.order='YXZ';w.scale.setScalar(1.9);w.position.set(sx*L,10.5,sz*(W/2-1));g.add(w);wheels.push(w)}
+  g.userData={body,wheels,tail,lb:null};return g;
+}
 function buildCoach(c){
   const g=new THREE.Group(),L=c.t.L,W=c.t.W,H=64,body=new THREE.MeshLambertMaterial({color:c.color}),tail=new THREE.MeshBasicMaterial({color:0x5a1010});
   g.add(part(body,L,H,W,0,10+H/2,0,true));
   g.add(part(CM.glass,L*.86,18,W+1.2,-L*.03,10+H*.72,0),part(CM.glass,2,26,W*.9,L/2+.6,10+H*.66,0));
   g.add(part(new THREE.MeshLambertMaterial({color:0xd4a83a}),L*.96,6,W+1.6,0,10+H*.3,0),part(CM.roofW,L*.94,3,W*.9,0,10+H+1.5,0));
-  for(const sd of [-1,1]){const t=new THREE.Mesh(new THREE.PlaneGeometry(L*.7,L*.087),new THREE.MeshBasicMaterial({map:COACHSIDE,transparent:true,side:THREE.DoubleSide}));t.position.set(-L*.04,10+H*.47,sd*(W/2+1));g.add(t)}
+  for(const sd of [-1,1]){const t=new THREE.Mesh(new THREE.PlaneGeometry(L*.7,L*.087),new THREE.MeshBasicMaterial({map:COACHSIDE,transparent:true,side:THREE.DoubleSide}));t.position.set(-L*.04,10+H*.47,sd*(W/2+1));t.rotation.y=sd>0?0:Math.PI;t.material.side=THREE.FrontSide;g.add(t)}
   g.add(part(CM.head,1,5,8,L/2+.5,22,-W*.33),part(CM.head,1,5,8,L/2+.5,22,W*.33),part(tail,1,6,8,-L/2-.5,24,-W*.33),part(tail,1,6,8,-L/2-.5,24,W*.33));
   const wheels=[];for(const [sx,sz] of [[.33,1],[.33,-1],[-.28,1],[-.28,-1],[-.4,1],[-.4,-1]]){const w=new THREE.Mesh(CG.wheel,CM.tire);w.rotation.order='YXZ';w.scale.setScalar(1.9);w.position.set(sx*L,10.5,sz*(W/2-1));g.add(w);wheels.push(w)}
   g.userData={body,wheels,tail,lb:null};return g;
